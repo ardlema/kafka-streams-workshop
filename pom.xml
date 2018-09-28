@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ardlema</groupId>
-    <artifactId>traffic-data-ingester</artifactId>
+    <artifactId>kafka-streams-workshop</artifactId>
     <version>1.0</version>
 
     <properties>
