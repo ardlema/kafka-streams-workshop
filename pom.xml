@@ -47,6 +47,11 @@
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_${scala.majorVersion}.${scala.minorVersion}</artifactId>
+            <version>${kafka.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-streams-test-utils</artifactId>
             <version>${kafka.version}</version>
             <scope>test</scope>
@@ -67,6 +72,17 @@
             <artifactId>scalatest_${scala.majorVersion}.${scala.minorVersion}</artifactId>
             <version>${scalatest.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.version}</version>
+            <classifier>test</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-test</artifactId>
+            <version>2.12.0</version>
         </dependency>
     </dependencies>
 
