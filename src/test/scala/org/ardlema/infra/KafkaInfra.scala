@@ -2,10 +2,12 @@ package org.ardlema.infra
 
 import java.util.{Collections, Properties}
 
+import io.confluent.kafka.schemaregistry.rest.{SchemaRegistryConfig, SchemaRegistryRestApplication}
 import kafka.server.{KafkaConfig, KafkaServer}
 import org.apache.curator.test.TestingServer
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
+
 
 trait KafkaInfra {
 
@@ -83,6 +85,26 @@ trait KafkaInfra {
     testFunction(kafkaServer)
   }
 
+  def withKafkaServerAndSchemaRegistry(props: Option[Properties], embedded: Boolean = false) (testFunction: KafkaServer => Any): Unit = {
+    val zookeeperServer = new TestingServer(zookeeperPort)
+    val conf = if(embedded) {
+      zookeeperServer.start()
+      configKafkaServer(props, zookeeperServer.getConnectString)
+    } else {
+      configKafkaServer(props, s"""${props.get.getProperty(zookeeperHostConfig)}:${props.get.getProperty(zookeeperPortConfig)}""")
+    }
+
+    val kafkaConfig = new KafkaConfig(conf)
+    val kafkaServer = new KafkaServer(kafkaConfig)
+    if(embedded){
+      kafkaServer.startup()
+      val restApp = new SchemaRegistryRestApplication(schemaRegistryProps(zookeeperServer.getConnectString))
+      val restServer = restApp.createServer()
+      restServer.start()
+    }
+    testFunction(kafkaServer)
+  }
+
   def withKafkaProducer (props : Properties)(producerFunction: KafkaProducer[Any, Any] => Any): Unit = {
     val producer: KafkaProducer[Any, Any] = new KafkaProducer(props)
     producerFunction(producer)
@@ -98,6 +120,18 @@ trait KafkaInfra {
   def fromKafkaConfigToProps(properties: KafkaConfig): Properties = {
     val props = new Properties()
     props.putAll(properties.props.asInstanceOf[java.util.Properties])
+    props
+  }
+
+  private def schemaRegistryProps(zkConnect: String): Properties = {
+    val props = new Properties()
+    //prop.setProperty(SchemaRegistryConfig.PORT_CONFIG, ((Integer) port).toString())
+    props.setProperty(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zkConnect)
+    //TODO: GET THIS FROM PROPS!!!
+    props.setProperty(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
+    props.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+    //prop.put(SchemaRegistryConfig.COMPATIBILITY_CONFIG, compatibilityType)
+    //prop.put(SchemaRegistryConfig.MASTER_ELIGIBILITY, masterEligibility)
     props
   }
 }

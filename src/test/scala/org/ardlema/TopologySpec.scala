@@ -25,7 +25,6 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
       kafkaConfig.put("zookeeper.host", "localhost")
       kafkaConfig.put("zookeeper.port", "2181")
       /*kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081")
-
       kafkaConfig.put(keySerializerKey, classOf[KafkaAvroSerializer])
       kafkaConfig.put(valueSerializerKey, classOf[KafkaAvroSerializer])*/
       kafkaConfig.put(keyDeserializerKey, classOf[StringDeserializer])
@@ -41,7 +40,7 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
       kafkaConfig.put(ConsumerConfig.AutoOffsetReset, "earliest")*/
 
 
-      withKafkaServer(Option(kafkaConfig), true) { kafkaServer =>
+      withKafkaServerAndSchemaRegistry(Option(kafkaConfig), true) { kafkaServer =>
         val testDriver = new TopologyTestDriver(TopologyBuilder.createTopology(), kafkaConfig)
 
         true should be(true)
