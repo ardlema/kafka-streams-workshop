@@ -3,6 +3,7 @@ package org.ardlema
 import java.lang
 import java.util.Properties
 
+import io.confluent.kafka.serializers.KafkaAvroSerializer
 import kafka.server.KafkaConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization._
@@ -26,11 +27,9 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
       kafkaConfig.put(bootstrapServerKey, "localhost:9092")
       kafkaConfig.put("zookeeper.host", "localhost")
       kafkaConfig.put("zookeeper.port", "2181")
-      /*kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081")
-      kafkaConfig.put(keySerializerKey, classOf[KafkaAvroSerializer])
-      kafkaConfig.put(valueSerializerKey, classOf[KafkaAvroSerializer])*/
+      kafkaConfig.put(schemaRegistryUrlKey, "http://localhost:8081")
       kafkaConfig.put(keyDeserializerKey, classOf[StringDeserializer])
-      kafkaConfig.put(valueDeserializerKey, classOf[LongDeserializer])
+      kafkaConfig.put(valueSerializerKey, classOf[KafkaAvroSerializer])
       kafkaConfig.put(groupIdKey, groupIdValue)
       kafkaConfig.put(KafkaConfig.BrokerIdProp, defaultBrokerIdProp)
       kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
@@ -38,8 +37,6 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
       kafkaConfig.put(KafkaConfig.NumPartitionsProp, defaultPartitions)
       kafkaConfig.put(KafkaConfig.AutoCreateTopicsEnableProp, defaultAutoCreateTopics)
       kafkaConfig.put(applicationIdKey, "mystreamingapp")
-      /*kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081")
-      kafkaConfig.put(ConsumerConfig.AutoOffsetReset, "earliest")*/
 
 
       withKafkaServerAndSchemaRegistry(Option(kafkaConfig), true) { kafkaServer =>

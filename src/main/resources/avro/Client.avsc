@@ -1,0 +1,9 @@
+{"namespace": "JavaSessionize.avro",
+  "type": "record",
+  "name": "Client",
+  "fields": [
+    {"name": "name", "type": "string"},
+    {"name": "age",  "type": "int"},
+    {"name": "vip",  "type": "boolean"}
+  ]
+}

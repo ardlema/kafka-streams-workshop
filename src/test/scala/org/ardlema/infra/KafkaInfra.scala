@@ -19,6 +19,7 @@ trait KafkaInfra {
   val defaultBrokerIdProp = "0"
   val zookeeperServer = "localhost"
   val bootstrapServerKey = "bootstrap.servers"
+  val schemaRegistryUrlKey = "schema.registry.url"
   val keySerializerKey = "key.serializer"
   val keyDeserializerKey = "key.deserializer"
   val groupIdKey = "group.id"
