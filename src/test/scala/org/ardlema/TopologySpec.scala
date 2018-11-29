@@ -7,7 +7,7 @@ import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import kafka.server.KafkaConfig
 import org.apache.kafka.common.serialization._
-import org.apache.kafka.streams.kstream.Consumed
+import org.apache.kafka.streams.kstream.{Consumed, Predicate}
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
 import org.ardlema.infra.KafkaInfra
@@ -20,9 +20,6 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
 
     it("should filter the VIP clients") {
       val kafkaConfig = new Properties()
-      //TODO: Extract these properties to a dev environment config file!!
-      //for now we ips need to be get from containers with inspect
-
       kafkaConfig.put(bootstrapServerKey, "localhost:9092")
       kafkaConfig.put("zookeeper.host", "localhost")
       kafkaConfig.put("zookeeper.port", "2181")
@@ -42,6 +39,7 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
       withKafkaServerAndSchemaRegistry(Option(kafkaConfig), true) { () =>
         val testDriver = new TopologyTestDriver(TopologyBuilder.createTopology(), kafkaConfig)
         val recordFactory = new ConsumerRecordFactory(new StringSerializer(), TopologyBuilder.getAvroSerde().serializer())
+
         val client1 = new Client("alberto", 39, true)
         val consumerRecordFactory1 = recordFactory.create("input-topic", "a", client1, 9999L)
         testDriver.pipeInput(consumerRecordFactory1)
@@ -53,6 +51,12 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
         testDriver.pipeInput(consumerRecordFactory2)
         val outputRecord2 = testDriver.readOutput("output-topic", new StringDeserializer(), TopologyBuilder.getAvroSerde().deserializer())
         Assert.assertNull(outputRecord2)
+
+        val client3 = new Client("maria", 37, true)
+        val consumerRecordFactory3 = recordFactory.create("input-topic", "c", client3, 9999L)
+        testDriver.pipeInput(consumerRecordFactory3)
+        val outputRecord3 = testDriver.readOutput("output-topic", new StringDeserializer(), TopologyBuilder.getAvroSerde().deserializer())
+        OutputVerifier.compareKeyValue(outputRecord3, "c", client3)
       }
     }
   }
@@ -71,7 +75,18 @@ object TopologyBuilder {
   def createTopology(): Topology = {
 
     val builder = new StreamsBuilder()
-    builder.stream("input-topic", Consumed.`with`(Serdes.String(), getAvroSerde())).to("output-topic")
+    val initialStream = builder.stream("input-topic", Consumed.`with`(Serdes.String(), getAvroSerde()))
+
+    //KStream<String, Long> onlyPositives = stream.filter((key, value) -> value > 0);
+    val isVipPredicate = new Predicate[String, Client]() {
+      @Override
+      def test(key: String, client: Client): Boolean = {
+        client.getVip.booleanValue()
+      }
+    }
+    val streamVIPs = initialStream.filter(isVipPredicate)
+
+    streamVIPs.to("output-topic")
     builder.build()
   }
 }
