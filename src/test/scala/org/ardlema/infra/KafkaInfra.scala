@@ -103,7 +103,6 @@ trait KafkaInfra {
     val kafkaServer = new KafkaServer(kafkaConfig)
     if(embedded){
       kafkaServer.startup()
-      Thread.sleep(20000)
       val schemaRegistryConfig = new SchemaRegistryConfig(schemaRegistryProps(zookeeperServer.getConnectString))
       val restApp = new SchemaRegistryRestApplication(schemaRegistryConfig)
       val restServer = restApp.createServer()
