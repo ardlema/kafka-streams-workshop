@@ -98,20 +98,13 @@ trait KafkaInfra {
 
     //TODO: Clean up this mess!!
     conf.put(schemaRegistryUrlKey, "http://localhost:8081")
-    //conf.put(listenersKey, "PLAINTEXT://localhost:9092")
-    //conf.put("advertised.host.name", "localhost")
-    //conf.put("advertised.listeners", "PLAINTEXT://localhost:9092")
     conf.put("offsets.topic.replication.factor", "1")
     val kafkaConfig = new KafkaConfig(conf)
     val kafkaServer = new KafkaServer(kafkaConfig)
     if(embedded){
       kafkaServer.startup()
       Thread.sleep(20000)
-      val schemaRegistryProps = new Properties()
-      schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
-      schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zookeeperServer.getConnectString)
-      schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
-      val schemaRegistryConfig = new SchemaRegistryConfig(schemaRegistryProps)
+      val schemaRegistryConfig = new SchemaRegistryConfig(schemaRegistryProps(zookeeperServer.getConnectString))
       val restApp = new SchemaRegistryRestApplication(schemaRegistryConfig)
       val restServer = restApp.createServer()
       restServer.start()
@@ -138,15 +131,10 @@ trait KafkaInfra {
   }
 
   private def schemaRegistryProps(zkConnect: String): Properties = {
-    val props = new Properties()
-    //props.setProperty("port", "8081")
-    //props.put(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zkConnect)
-    //props.put("listeners", "http://localhost:9092")
-    //TODO: GET THIS FROM PROPS!!!
-    //props.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
-    //props.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
-    //prop.put(SchemaRegistryConfig.COMPATIBILITY_CONFIG, compatibilityType)
-    //prop.put(SchemaRegistryConfig.MASTER_ELIGIBILITY, masterEligibility)
-    props
+    val schemaRegistryProps = new Properties()
+    schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
+    schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zkConnect)
+    schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+    schemaRegistryProps
   }
 }
