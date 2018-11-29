@@ -8,7 +8,7 @@ import io.confluent.kafka.streams.serdes.avro.{GenericAvroSerde, SpecificAvroSer
 import kafka.server.KafkaConfig
 import org.apache.kafka.common.serialization._
 import org.apache.kafka.streams.kstream.Consumed
-import org.apache.kafka.streams.test.ConsumerRecordFactory
+import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
 import org.ardlema.infra.KafkaInfra
 import org.scalatest.{FunSpec, Matchers}
@@ -51,13 +51,12 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
                  "http://localhost:8081/"),
              isKeySerde)
 
-        val recordFactory = new ConsumerRecordFactory(new StringSerializer(), genericAvroSerde.serializer())
+        val recordFactory = new ConsumerRecordFactory(new StringSerializer(), TopologyBuilder.getAvroSerde().serializer())
         val client = new Client("alberto",39, true)
         val consumerRecordFactory = recordFactory.create("input-topic", "a", client, 9999L)
         testDriver.pipeInput(consumerRecordFactory)
-        assert(true)
-        //val outputRecord= testDriver.readOutput("output-topic", new StringDeserializer(), new KafkaAvroDeserializer())
-        //OutputVerifier.compareKeyValue(outputRecord, "a", client)
+        val outputRecord= testDriver.readOutput("output-topic", new StringDeserializer(), TopologyBuilder.getAvroSerde().deserializer())
+        OutputVerifier.compareKeyValue(outputRecord, "a", client)
       }
     }
   }
@@ -68,7 +67,7 @@ object TopologyBuilder {
   def getAvroSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Client]()
     specificAvroSerde.configure(
-      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081"),
+      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081/"),
       false)
     specificAvroSerde
   }
