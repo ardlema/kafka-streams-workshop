@@ -11,6 +11,7 @@ import org.apache.kafka.streams.kstream.Consumed
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
 import org.ardlema.infra.KafkaInfra
+import org.junit.Assert
 import org.scalatest.{FunSpec, Matchers}
 
 class TopologySpec extends FunSpec with Matchers with KafkaInfra {
@@ -41,11 +42,17 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
       withKafkaServerAndSchemaRegistry(Option(kafkaConfig), true) { () =>
         val testDriver = new TopologyTestDriver(TopologyBuilder.createTopology(), kafkaConfig)
         val recordFactory = new ConsumerRecordFactory(new StringSerializer(), TopologyBuilder.getAvroSerde().serializer())
-        val client = new Client("alberto",39, true)
-        val consumerRecordFactory = recordFactory.create("input-topic", "a", client, 9999L)
-        testDriver.pipeInput(consumerRecordFactory)
-        val outputRecord= testDriver.readOutput("output-topic", new StringDeserializer(), TopologyBuilder.getAvroSerde().deserializer())
-        OutputVerifier.compareKeyValue(outputRecord, "a", client)
+        val client1 = new Client("alberto", 39, true)
+        val consumerRecordFactory1 = recordFactory.create("input-topic", "a", client1, 9999L)
+        testDriver.pipeInput(consumerRecordFactory1)
+        val outputRecord1 = testDriver.readOutput("output-topic", new StringDeserializer(), TopologyBuilder.getAvroSerde().deserializer())
+        OutputVerifier.compareKeyValue(outputRecord1, "a", client1)
+
+        val client2 = new Client("fran", 35, false)
+        val consumerRecordFactory2 = recordFactory.create("input-topic", "b", client2, 9999L)
+        testDriver.pipeInput(consumerRecordFactory2)
+        val outputRecord2 = testDriver.readOutput("output-topic", new StringDeserializer(), TopologyBuilder.getAvroSerde().deserializer())
+        Assert.assertNull(outputRecord2)
       }
     }
   }
