@@ -24,7 +24,6 @@ object TopologyBuilder {
     val builder = new StreamsBuilder()
     val initialStream = builder.stream("input-topic", Consumed.`with`(Serdes.String(), getAvroSerde()))
 
-    //KStream<String, Long> onlyPositives = stream.filter((key, value) -> value > 0);
     val isVipPredicate = new Predicate[String, Client]() {
       @Override
       def test(key: String, client: Client): Boolean = {
@@ -36,5 +35,4 @@ object TopologyBuilder {
     streamVIPs.to("output-topic")
     builder.build()
   }
-
 }
