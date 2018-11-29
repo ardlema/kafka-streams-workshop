@@ -80,6 +80,11 @@
             <version>${confluent.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-streams-avro-serde</artifactId>
+            <version>${confluent.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.json4s</groupId>
             <artifactId>json4s-jackson_${scala.majorVersion}.${scala.minorVersion}</artifactId>
             <version>${json4s.version}</version>

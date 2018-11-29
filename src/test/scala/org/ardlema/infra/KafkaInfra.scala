@@ -22,6 +22,7 @@ trait KafkaInfra {
   val schemaRegistryUrlKey = "schema.registry.url"
   val keySerializerKey = "key.serializer"
   val keyDeserializerKey = "key.deserializer"
+  val listenersKey = "listeners"
   val groupIdKey = "group.id"
   val groupIdValue = "prove_group"
   val valueSerializerKey = "value.serializer"
@@ -86,7 +87,7 @@ trait KafkaInfra {
     testFunction(kafkaServer)
   }
 
-  def withKafkaServerAndSchemaRegistry(props: Option[Properties], embedded: Boolean = false) (testFunction: KafkaServer => Any): Unit = {
+  def withKafkaServerAndSchemaRegistry(props: Option[Properties], embedded: Boolean = false) (testFunction: () => Any): Unit = {
     val zookeeperServer = new TestingServer(zookeeperPort)
     val conf = if(embedded) {
       zookeeperServer.start()
@@ -95,15 +96,27 @@ trait KafkaInfra {
       configKafkaServer(props, s"""${props.get.getProperty(zookeeperHostConfig)}:${props.get.getProperty(zookeeperPortConfig)}""")
     }
 
+    //TODO: Clean up this mess!!
+    conf.put(schemaRegistryUrlKey, "http://localhost:8081")
+    //conf.put(listenersKey, "PLAINTEXT://localhost:9092")
+    //conf.put("advertised.host.name", "localhost")
+    //conf.put("advertised.listeners", "PLAINTEXT://localhost:9092")
+    conf.put("offsets.topic.replication.factor", "1")
     val kafkaConfig = new KafkaConfig(conf)
     val kafkaServer = new KafkaServer(kafkaConfig)
     if(embedded){
       kafkaServer.startup()
-      val restApp = new SchemaRegistryRestApplication(schemaRegistryProps(zookeeperServer.getConnectString))
+      Thread.sleep(20000)
+      val schemaRegistryProps = new Properties()
+      schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
+      schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zookeeperServer.getConnectString)
+      schemaRegistryProps.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+      val schemaRegistryConfig = new SchemaRegistryConfig(schemaRegistryProps)
+      val restApp = new SchemaRegistryRestApplication(schemaRegistryConfig)
       val restServer = restApp.createServer()
       restServer.start()
     }
-    testFunction(kafkaServer)
+    testFunction()
   }
 
   def withKafkaProducer (props : Properties)(producerFunction: KafkaProducer[Any, Any] => Any): Unit = {
@@ -126,11 +139,12 @@ trait KafkaInfra {
 
   private def schemaRegistryProps(zkConnect: String): Properties = {
     val props = new Properties()
-    //prop.setProperty(SchemaRegistryConfig.PORT_CONFIG, ((Integer) port).toString())
-    props.setProperty(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zkConnect)
+    //props.setProperty("port", "8081")
+    //props.put(SchemaRegistryConfig.KAFKASTORE_CONNECTION_URL_CONFIG, zkConnect)
+    //props.put("listeners", "http://localhost:9092")
     //TODO: GET THIS FROM PROPS!!!
-    props.setProperty(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
-    props.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+    //props.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092")
+    //props.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
     //prop.put(SchemaRegistryConfig.COMPATIBILITY_CONFIG, compatibilityType)
     //prop.put(SchemaRegistryConfig.MASTER_ELIGIBILITY, masterEligibility)
     props
