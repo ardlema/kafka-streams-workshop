@@ -1,15 +1,13 @@
 package org.ardlema
 
-import java.util.{Collections, Properties}
+import java.util.Properties
 
 import JavaSessionize.avro.Client
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
-import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import kafka.server.KafkaConfig
 import org.apache.kafka.common.serialization._
-import org.apache.kafka.streams.kstream.{Consumed, Predicate}
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
-import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
+import org.apache.kafka.streams.{StreamsConfig, TopologyTestDriver}
 import org.ardlema.infra.KafkaInfra
 import org.junit.Assert
 import org.scalatest.{FunSpec, Matchers}
@@ -59,34 +57,5 @@ class TopologySpec extends FunSpec with Matchers with KafkaInfra {
         OutputVerifier.compareKeyValue(outputRecord3, "c", client3)
       }
     }
-  }
-}
-
-object TopologyBuilder {
-
-  def getAvroSerde() = {
-    val specificAvroSerde = new SpecificAvroSerde[Client]()
-    specificAvroSerde.configure(
-      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081/"),
-      false)
-    specificAvroSerde
-  }
-
-  def createTopology(): Topology = {
-
-    val builder = new StreamsBuilder()
-    val initialStream = builder.stream("input-topic", Consumed.`with`(Serdes.String(), getAvroSerde()))
-
-    //KStream<String, Long> onlyPositives = stream.filter((key, value) -> value > 0);
-    val isVipPredicate = new Predicate[String, Client]() {
-      @Override
-      def test(key: String, client: Client): Boolean = {
-        client.getVip.booleanValue()
-      }
-    }
-    val streamVIPs = initialStream.filter(isVipPredicate)
-
-    streamVIPs.to("output-topic")
-    builder.build()
   }
 }
