@@ -1,4 +1,4 @@
-package org.ardlema
+package org.ardlema.filtering
 
 import java.util.Properties
 
