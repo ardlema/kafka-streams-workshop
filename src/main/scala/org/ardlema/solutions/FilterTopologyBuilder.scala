@@ -1,4 +1,4 @@
-package org.ardlema
+package org.ardlema.solutions
 
 import java.util.Collections
 
@@ -9,7 +9,7 @@ import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.kstream.{Consumed, Predicate}
 import org.apache.kafka.streams.{StreamsBuilder, Topology}
 
-object TopologyBuilder {
+object FilterTopologyBuilder {
 
   def getAvroSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Client]()
