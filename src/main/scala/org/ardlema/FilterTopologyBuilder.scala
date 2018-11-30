@@ -6,7 +6,7 @@ import JavaSessionize.avro.Client
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.kstream.Consumed
+import org.apache.kafka.streams.kstream.{Consumed, KStream}
 import org.apache.kafka.streams.{StreamsBuilder, Topology}
 
 object FilterTopologyBuilder {
@@ -23,12 +23,14 @@ object FilterTopologyBuilder {
 
     val builder = new StreamsBuilder()
     val initialStream = builder.stream("input-topic", Consumed.`with`(Serdes.String(), getAvroSerde()))
-
-    //TODO: Make the proper transformations to the initialStream to get rid of the non VIP clients to make the test pass!!
-    val streamVIPs = initialStream
-
-    streamVIPs.to("output-topic")
+    val vipClients = filterVIPClients(initialStream)
+    vipClients.to("output-topic")
     builder.build()
+  }
+
+  //TODO: Make the proper transformations to the clientStream to get rid of the non VIP clients to make the test pass!!
+  def filterVIPClients(clientStream: KStream[String, Client]): KStream[String, Client] = {
+    clientStream
   }
 
 }
