@@ -9,9 +9,9 @@ I will be adding more challenges so please stay tuned. Collaborations, ideas on 
 
 # The challenges
 
-[Filtering events](##filtering-vip-clients)
+[1. Filtering events](#1-filtering-vip-clients)
 
-## Filtering VIP clients
+## 1. Filtering VIP clients
 
 In this challenge you will need to filter a stream of client events. These events will follow the following structure:
 
