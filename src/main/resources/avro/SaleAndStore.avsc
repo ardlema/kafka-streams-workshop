@@ -1,6 +1,6 @@
 {"namespace": "JavaSessionize.avro",
   "type": "record",
-  "name": "Sale",
+  "name": "SaleAndStore",
   "fields": [
     {"name": "amount", "type": "float"},
     {"name": "product",  "type": "string"},

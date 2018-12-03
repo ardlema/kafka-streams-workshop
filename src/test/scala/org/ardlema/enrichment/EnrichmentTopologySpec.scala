@@ -2,13 +2,13 @@ package org.ardlema.enrichment
 
 import java.util.{Collections, Properties}
 
-import JavaSessionize.avro.{Client, Sale}
+import JavaSessionize.avro.{Client, Sale, SaleAndStore}
 import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import kafka.server.KafkaConfig
 import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, StringSerializer}
-import org.apache.kafka.streams.kstream.{Consumed, KStream}
+import org.apache.kafka.streams.kstream.{Consumed, KStream, Predicate, ValueMapper}
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
@@ -24,6 +24,8 @@ trait KafkaPropertiesEnrichment {
   val applicationKey = "enrichmentapp"
   val schemaRegistryHost = "localhost"
   val schemaRegistryPort = "8082"
+  val inputTopic = "input-topic-enrichment"
+  val outputTopic = "output-topic-enrichment-saleandstore"
 }
 
 class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalProperties with KafkaPropertiesEnrichment with KafkaInfra {
@@ -56,6 +58,7 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
       schemaRegistryConfig.put("port", schemaRegistryPort)
+      schemaRegistryConfig.put("avro.compatibility.level", "none")
 
 
       withKafkaServerAndSchemaRegistry(kafkaConfig, schemaRegistryConfig, zookeeperPortAsInt) { () =>
@@ -63,10 +66,11 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
         val recordFactory = new ConsumerRecordFactory(new StringSerializer(), EnrichmentTopologyBuilder.getAvroSaleSerde().serializer())
 
         val sale1 = new Sale(1250.85F, "Jurassic Park T-shirt", 1234)
-        val saleRecordFactory1 = recordFactory.create("input-topic-enrichment", "a", sale1)
+        val saleAndStore1 = new SaleAndStore(1250.85F, "Jurassic Park T-shirt", "C/ Narvaez, 78", "Madrid")
+        val saleRecordFactory1 = recordFactory.create(inputTopic, "a", sale1)
         testDriver.pipeInput(saleRecordFactory1)
-        val outputRecord1 = testDriver.readOutput("output-topic-enrichment", new StringDeserializer(), EnrichmentTopologyBuilder.getAvroSaleSerde().deserializer())
-        OutputVerifier.compareKeyValue(outputRecord1, "a", sale1)
+        val outputRecord1 = testDriver.readOutput(outputTopic, new StringDeserializer(), EnrichmentTopologyBuilder.getAvroSaleAndStoreSerde().deserializer())
+        OutputVerifier.compareKeyValue(outputRecord1, "a", saleAndStore1)
 
         /*val client2 = new Client("fran", 35, false)
         val consumerRecordFactory2 = recordFactory.create("input-topic", "b", client2, 9999L)
@@ -87,6 +91,10 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
 
 object EnrichmentTopologyBuilder extends KafkaPropertiesEnrichment {
 
+  case class StoreInformation(storeAddress: String, storeCity: String)
+
+  val storesInformation = Map(1234 -> StoreInformation("C/ Narvaez, 78", "Madrid"))
+
   def getAvroSaleSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Sale]()
     specificAvroSerde.configure(
@@ -95,18 +103,59 @@ object EnrichmentTopologyBuilder extends KafkaPropertiesEnrichment {
     specificAvroSerde
   }
 
-/*  def getAvroSaleAndStoreSerde() = {
+  def getAvroSaleAndStoreSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[SaleAndStore]()
     specificAvroSerde.configure(
-      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081/"),
+      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort/"""),
       false)
     specificAvroSerde
-  }*/
+  }
 
   def createTopology(): Topology = {
 
     val builder = new StreamsBuilder()
-    val initialStream = builder.stream("input-topic-enrichment", Consumed.`with`(Serdes.String(), getAvroSaleSerde())).to("output-topic-enrichment")
+    val initialStream = builder.stream(inputTopic, Consumed.`with`(Serdes.String(), getAvroSaleSerde()))
+
+    val existStore = new Predicate[String, Sale]() {
+      @Override
+      def test(key: String, sale: Sale): Boolean = {
+        storesInformation.contains(sale.getStoreid)
+      }
+    }
+
+    val notExistStore = new Predicate[String, Sale]() {
+      @Override
+      def test(key: String, sale: Sale): Boolean = {
+        !storesInformation.contains(sale.getStoreid)
+      }
+    }
+
+    val saleToSaleAndStore = new ValueMapper[Sale, SaleAndStore]() {
+      @Override
+      def apply(sale: Sale): SaleAndStore = {
+        val storeInfo = storesInformation(sale.getStoreid)
+        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
+      }
+    }
+
+
+    val splittedStream = initialStream.branch(existStore, notExistStore)
+
+    splittedStream(0).mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
+      @Override
+      def apply(sale: Sale): SaleAndStore = {
+        val storeInfo = storesInformation(sale.getStoreid)
+        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
+      }
+    }).to(outputTopic)
+
+    splittedStream(1).mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
+      @Override
+      def apply(sale: Sale): SaleAndStore = {
+        val storeInfo = storesInformation(sale.getStoreid)
+        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
+      }
+    }).to(outputTopic)
     builder.build()
   }
 
