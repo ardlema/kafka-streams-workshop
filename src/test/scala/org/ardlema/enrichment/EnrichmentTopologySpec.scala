@@ -17,13 +17,13 @@ import org.scalatest.{FunSpec, Matchers}
 trait KafkaPropertiesEnrichment {
 
   val zookeeperHost = "localhost"
-  val zookeeperPort = "2181"
+  val zookeeperPort = "2182"
   val zookeeperPortAsInt = zookeeperPort.toInt
   val kafkaHost = "localhost"
-  val kafkaPort = "9092"
+  val kafkaPort = "9093"
   val applicationKey = "enrichmentapp"
   val schemaRegistryHost = "localhost"
-  val schemaRegistryPort = "8081"
+  val schemaRegistryPort = "8083"
 }
 
 class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalProperties with KafkaPropertiesEnrichment with KafkaInfra {
@@ -55,6 +55,7 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
       val schemaRegistryConfig = new Properties()
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+      schemaRegistryConfig.put("port", schemaRegistryPort)
 
 
       withKafkaServerAndSchemaRegistry(kafkaConfig, schemaRegistryConfig, zookeeperPortAsInt) { () =>
@@ -84,12 +85,12 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
 }
 
 
-object EnrichmentTopologyBuilder {
+object EnrichmentTopologyBuilder extends KafkaPropertiesEnrichment {
 
   def getAvroSaleSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Sale]()
     specificAvroSerde.configure(
-      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081/"),
+      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort/"""),
       false)
     specificAvroSerde
   }
