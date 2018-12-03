@@ -1,22 +1,13 @@
 package org.ardlema.filtering
 
-import java.util.Properties
-
-import JavaSessionize.avro.Client
-import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
-import kafka.server.KafkaConfig
-import org.apache.kafka.common.serialization._
-import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
-import org.apache.kafka.streams.{StreamsConfig, TopologyTestDriver}
 import org.ardlema.infra.KafkaInfra
-import org.junit.Assert
 import org.scalatest.{FunSpec, Matchers}
 
 class FilterTopologySpec extends FunSpec with Matchers with KafkaInfra {
 
   describe("The topology") {
 
-    it("should filter the VIP clients") {
+    /*it("should filter the VIP clients") {
       val kafkaConfig = new Properties()
       kafkaConfig.put(bootstrapServerKey, "localhost:9092")
       kafkaConfig.put("zookeeper.host", "localhost")
@@ -56,6 +47,6 @@ class FilterTopologySpec extends FunSpec with Matchers with KafkaInfra {
         val outputRecord3 = testDriver.readOutput("output-topic", new StringDeserializer(), FilterTopologyBuilder.getAvroSerde().deserializer())
         OutputVerifier.compareKeyValue(outputRecord3, "c", client3)
       }
-    }
+    }*/
   }
 }
