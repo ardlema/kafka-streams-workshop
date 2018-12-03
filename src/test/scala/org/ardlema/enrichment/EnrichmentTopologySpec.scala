@@ -11,28 +11,11 @@ import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, String
 import org.apache.kafka.streams.kstream.{Consumed, KStream}
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
-import org.ardlema.infra.KafkaInfra
+import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
 import org.scalatest.{FunSpec, Matchers}
 
-trait KafkaProperties {
+trait KafkaPropertiesEnrichment {
 
-  val defaultAutoCreateTopics = "true"
-  val defaultPartitions = "1"
-  val defaultBrokerIdProp = "0"
-  val bootstrapServerKey = "bootstrap.servers"
-  val schemaRegistryUrlKey = "schema.registry.url"
-  val keySerializerKey = "key.serializer"
-  val keyDeserializerKey = "key.deserializer"
-  val listenersKey = "listeners"
-  val groupIdKey = "group.id"
-  val groupIdValue = "prove_group"
-  val valueSerializerKey = "value.serializer"
-  val valueDeserializerKey = "value.deserializer"
-  val applicationIdKey = "application.id"
-  val autoCreateTopicsKey = "auto.create.topics.enable"
-  val zookeeperPortConfig = "zookeeper.port"
-  val zookeeperHostConfig = "zookeeper.host"
-  val cacheMaxBytesBufferingKey = "cache.max.bytes.buffering"
   val zookeeperHost = "localhost"
   val zookeeperPort = "2181"
   val zookeeperPortAsInt = zookeeperPort.toInt
@@ -43,7 +26,7 @@ trait KafkaProperties {
   val schemaRegistryPort = "8081"
 }
 
-class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaProperties with KafkaInfra {
+class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalProperties with KafkaPropertiesEnrichment with KafkaInfra {
 
   describe("The topology") {
 
