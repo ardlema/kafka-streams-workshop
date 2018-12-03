@@ -10,7 +10,6 @@ import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, String
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsConfig, TopologyTestDriver}
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
-import org.ardlema.solutions.enrichment.EnrichmentTopologyBuilder
 import org.scalatest.{FunSpec, Matchers}
 
 trait KafkaPropertiesEnrichment {
