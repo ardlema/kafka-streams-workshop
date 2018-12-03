@@ -6,7 +6,7 @@ import JavaSessionize.avro.{Sale, SaleAndStore}
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.kstream.{Consumed, Predicate, ValueMapper}
+import org.apache.kafka.streams.kstream.Consumed
 import org.apache.kafka.streams.{StreamsBuilder, Topology}
 
 object EnrichmentTopologyBuilder {
@@ -42,31 +42,11 @@ object EnrichmentTopologyBuilder {
     val builder = new StreamsBuilder()
     val initialStream = builder.stream(inputTopic, Consumed.`with`(Serdes.String(), getAvroSaleSerde(schemaRegistryHost, schemaRegistryPort)))
 
-    val existStore = new Predicate[String, Sale]() {
-      @Override
-      def test(key: String, sale: Sale): Boolean = {
-        storesInformation.contains(sale.getStoreid)
-      }
-    }
+    //TODO: Check out whether the store id from the sales event exists within the storesInformation hashmap. If it exists you should modify the event,
+    // convert it to a SaleAndStore object and redirect it to the outputTopic topic. If it does not exist you should redirect the event to the outputTopicError topic.
 
-    val notExistStore = new Predicate[String, Sale]() {
-      @Override
-      def test(key: String, sale: Sale): Boolean = {
-        !storesInformation.contains(sale.getStoreid)
-      }
-    }
-
-    val splittedStream = initialStream.branch(existStore, notExistStore)
-
-    splittedStream(0).mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
-      @Override
-      def apply(sale: Sale): SaleAndStore = {
-        val storeInfo = storesInformation(sale.getStoreid)
-        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
-      }
-    }).to(outputTopic)
-
-    splittedStream(1).to(outputTopicError)
+    initialStream.to(outputTopic)
+    initialStream.to(outputTopicError)
 
     builder.build()
   }
