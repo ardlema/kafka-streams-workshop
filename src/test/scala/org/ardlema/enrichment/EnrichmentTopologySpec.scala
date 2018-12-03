@@ -23,7 +23,7 @@ trait KafkaPropertiesEnrichment {
   val kafkaPort = "9093"
   val applicationKey = "enrichmentapp"
   val schemaRegistryHost = "localhost"
-  val schemaRegistryPort = "8083"
+  val schemaRegistryPort = "8082"
 }
 
 class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalProperties with KafkaPropertiesEnrichment with KafkaInfra {
