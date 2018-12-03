@@ -56,15 +56,6 @@ object EnrichmentTopologyBuilder {
       }
     }
 
-    val saleToSaleAndStore = new ValueMapper[Sale, SaleAndStore]() {
-      @Override
-      def apply(sale: Sale): SaleAndStore = {
-        val storeInfo = storesInformation(sale.getStoreid)
-        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
-      }
-    }
-
-
     val splittedStream = initialStream.branch(existStore, notExistStore)
 
     splittedStream(0).mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
@@ -76,6 +67,7 @@ object EnrichmentTopologyBuilder {
     }).to(outputTopic)
 
     splittedStream(1).to(outputTopicError)
+
     builder.build()
   }
 }
