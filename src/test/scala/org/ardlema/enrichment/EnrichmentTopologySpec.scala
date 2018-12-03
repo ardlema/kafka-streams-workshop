@@ -26,6 +26,7 @@ trait KafkaPropertiesEnrichment {
   val schemaRegistryPort = "8082"
   val inputTopic = "input-topic-enrichment"
   val outputTopic = "output-topic-enrichment-saleandstore"
+  val outputTopicError = "output-topic-enrichment-error"
 }
 
 class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalProperties with KafkaPropertiesEnrichment with KafkaInfra {
@@ -72,17 +73,11 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
         val outputRecord1 = testDriver.readOutput(outputTopic, new StringDeserializer(), EnrichmentTopologyBuilder.getAvroSaleAndStoreSerde().deserializer())
         OutputVerifier.compareKeyValue(outputRecord1, "a", saleAndStore1)
 
-        /*val client2 = new Client("fran", 35, false)
-        val consumerRecordFactory2 = recordFactory.create("input-topic", "b", client2, 9999L)
-        testDriver.pipeInput(consumerRecordFactory2)
-        val outputRecord2 = testDriver.readOutput("output-topic", new StringDeserializer(), FilterTopologyBuilder.getAvroSerde().deserializer())
-        Assert.assertNull(outputRecord2)
-
-        val client3 = new Client("maria", 37, true)
-        val consumerRecordFactory3 = recordFactory.create("input-topic", "c", client3, 9999L)
-        testDriver.pipeInput(consumerRecordFactory3)
-        val outputRecord3 = testDriver.readOutput("output-topic", new StringDeserializer(), FilterTopologyBuilder.getAvroSerde().deserializer())
-        OutputVerifier.compareKeyValue(outputRecord3, "c", client3)*/
+        val sale2 = new Sale(3434.85F, "Hat", 6666)
+        val saleRecordFactory2 = recordFactory.create(inputTopic, "a", sale2)
+        testDriver.pipeInput(saleRecordFactory2)
+        val outputRecord2 = testDriver.readOutput(outputTopicError, new StringDeserializer(), EnrichmentTopologyBuilder.getAvroSaleSerde().deserializer())
+        OutputVerifier.compareKeyValue(outputRecord2, "a", sale2)
       }
     }
   }
@@ -93,7 +88,8 @@ object EnrichmentTopologyBuilder extends KafkaPropertiesEnrichment {
 
   case class StoreInformation(storeAddress: String, storeCity: String)
 
-  val storesInformation = Map(1234 -> StoreInformation("C/ Narvaez, 78", "Madrid"))
+  val storesInformation = Map(1234 -> StoreInformation("C/ Narvaez, 78", "Madrid"),
+    5678 -> StoreInformation("C/ Pradillo, 33", "Madrid"))
 
   def getAvroSaleSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Sale]()
@@ -149,13 +145,7 @@ object EnrichmentTopologyBuilder extends KafkaPropertiesEnrichment {
       }
     }).to(outputTopic)
 
-    splittedStream(1).mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
-      @Override
-      def apply(sale: Sale): SaleAndStore = {
-        val storeInfo = storesInformation(sale.getStoreid)
-        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
-      }
-    }).to(outputTopic)
+    splittedStream(1).to(outputTopicError)
     builder.build()
   }
 
