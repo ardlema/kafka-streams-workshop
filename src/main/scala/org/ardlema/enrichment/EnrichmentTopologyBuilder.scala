@@ -1,4 +1,4 @@
-package org.ardlema.solutions.enrichment
+package org.ardlema.enrichment
 
 import java.util.Collections
 
@@ -6,7 +6,7 @@ import JavaSessionize.avro.{Sale, SaleAndStore}
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.kstream.{Consumed, KStream, Predicate, ValueMapper}
+import org.apache.kafka.streams.kstream.{Consumed, Predicate, ValueMapper}
 import org.apache.kafka.streams.{StreamsBuilder, Topology}
 
 object EnrichmentTopologyBuilder {
@@ -58,19 +58,16 @@ object EnrichmentTopologyBuilder {
 
     val splittedStream = initialStream.branch(existStore, notExistStore)
 
-    salesMatchingWithStores(splittedStream(0)).to(outputTopic)
-    splittedStream(1).to(outputTopicError)
-
-    builder.build()
-  }
-
-  private def salesMatchingWithStores(stream: KStream[String, Sale]) = {
-    stream.mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
+    splittedStream(0).mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
       @Override
       def apply(sale: Sale): SaleAndStore = {
         val storeInfo = storesInformation(sale.getStoreid)
         new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
       }
-    })
+    }).to(outputTopic)
+
+    splittedStream(1).to(outputTopicError)
+
+    builder.build()
   }
 }
