@@ -1,31 +1,64 @@
-package org.ardlema.filtering
+package org.ardlema.solutions.filtering
 
-import org.ardlema.infra.KafkaInfra
-import org.scalatest.{FunSpec, Matchers}
+import java.util.Properties
 
-class FilterTopologySpec extends FunSpec with Matchers with KafkaInfra {
+import JavaSessionize.avro.Client
+import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig
+import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
+import kafka.server.KafkaConfig
+import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, StringSerializer}
+import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
+import org.apache.kafka.streams.{StreamsConfig, TopologyTestDriver}
+import org.ardlema.enrichment.EnrichmentTopologyBuilder
+import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
+import org.junit.Assert
+import org.scalatest.FunSpec
+
+trait KafkaPropertiesFilter {
+
+  val zookeeperHost = "localhost"
+  val zookeeperPort = "2181"
+  val zookeeperPortAsInt = zookeeperPort.toInt
+  val kafkaHost = "localhost"
+  val kafkaPort = "9092"
+  val applicationKey = "filtertapp"
+  val schemaRegistryHost = "localhost"
+  val schemaRegistryPort = "8081"
+}
+
+class FilterTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaPropertiesFilter with KafkaInfra {
 
   describe("The topology") {
 
-    /*it("should filter the VIP clients") {
+    it("should filter the VIP clients") {
       val kafkaConfig = new Properties()
-      kafkaConfig.put(bootstrapServerKey, "localhost:9092")
-      kafkaConfig.put("zookeeper.host", "localhost")
-      kafkaConfig.put("zookeeper.port", "2181")
-      kafkaConfig.put(schemaRegistryUrlKey, "http://localhost:8081")
+      kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
+      kafkaConfig.put("zookeeper.host", zookeeperHost)
+      kafkaConfig.put("zookeeper.port", zookeeperPort)
+      kafkaConfig.put(schemaRegistryUrlKey, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
       kafkaConfig.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName())
-      kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, FilterTopologyBuilder.getAvroSerde().getClass.getName)
-      kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081")
+      kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, EnrichmentTopologyBuilder.getAvroSaleSerde().getClass.getName)
+      kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
       kafkaConfig.put(groupIdKey, groupIdValue)
       kafkaConfig.put(KafkaConfig.BrokerIdProp, defaultBrokerIdProp)
       kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
       kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
       kafkaConfig.put(KafkaConfig.NumPartitionsProp, defaultPartitions)
       kafkaConfig.put(KafkaConfig.AutoCreateTopicsEnableProp, defaultAutoCreateTopics)
-      kafkaConfig.put(applicationIdKey, "mystreamingapp")
+      kafkaConfig.put(applicationIdKey, applicationKey)
+      kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
+      kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
+      kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
+      kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
+      kafkaConfig.put("offsets.topic.replication.factor", "1")
+
+      val schemaRegistryConfig = new Properties()
+      schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
+      schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+      schemaRegistryConfig.put("port", schemaRegistryPort)
 
 
-      withKafkaServerAndSchemaRegistry(Option(kafkaConfig), true) { () =>
+      withKafkaServerAndSchemaRegistry(kafkaConfig, schemaRegistryConfig, zookeeperPortAsInt) { () =>
         val testDriver = new TopologyTestDriver(FilterTopologyBuilder.createTopology(), kafkaConfig)
         val recordFactory = new ConsumerRecordFactory(new StringSerializer(), FilterTopologyBuilder.getAvroSerde().serializer())
 
@@ -47,6 +80,6 @@ class FilterTopologySpec extends FunSpec with Matchers with KafkaInfra {
         val outputRecord3 = testDriver.readOutput("output-topic", new StringDeserializer(), FilterTopologyBuilder.getAvroSerde().deserializer())
         OutputVerifier.compareKeyValue(outputRecord3, "c", client3)
       }
-    }*/
+    }
   }
 }
