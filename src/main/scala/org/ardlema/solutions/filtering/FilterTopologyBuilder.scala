@@ -11,6 +11,7 @@ import org.apache.kafka.streams.{StreamsBuilder, Topology}
 
 object FilterTopologyBuilder {
 
+  //TODO: PASS IN SCHEMA REGISTRY PROPS
   def getAvroSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Client]()
     specificAvroSerde.configure(

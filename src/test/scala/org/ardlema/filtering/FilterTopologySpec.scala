@@ -1,4 +1,4 @@
-package org.ardlema.solutions.filtering
+package org.ardlema.filtering
 
 import java.util.Properties
 
@@ -9,7 +9,6 @@ import kafka.server.KafkaConfig
 import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, StringSerializer}
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.apache.kafka.streams.{StreamsConfig, TopologyTestDriver}
-import org.ardlema.enrichment.EnrichmentTopologyBuilder
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
 import org.junit.Assert
 import org.scalatest.FunSpec
@@ -37,7 +36,7 @@ class FilterTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaPr
       kafkaConfig.put("zookeeper.port", zookeeperPort)
       kafkaConfig.put(schemaRegistryUrlKey, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
       kafkaConfig.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName())
-      kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, EnrichmentTopologyBuilder.getAvroSaleSerde().getClass.getName)
+      kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, FilterTopologyBuilder.getAvroSerde().getClass.getName)
       kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
       kafkaConfig.put(groupIdKey, groupIdValue)
       kafkaConfig.put(KafkaConfig.BrokerIdProp, defaultBrokerIdProp)
