@@ -1,0 +1,10 @@
+{"namespace": "JavaSessionize.avro",
+  "type": "record",
+  "name": "Purchase",
+  "fields": [
+    {"name": "timestamp", "type": "string"},
+    {"name": "productid",  "type": "string"},
+    {"name": "productdescription",  "type": "string"},
+    {"name": "amount",  "type": "float"}
+  ]
+}
