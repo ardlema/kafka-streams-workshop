@@ -1,5 +1,6 @@
 package org.ardlema.joining
 
+import java.util.concurrent.TimeUnit
 import java.util.{Collections, Properties}
 
 import JavaSessionize.avro.{Coupon, Purchase}
@@ -8,9 +9,9 @@ import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import kafka.server.KafkaConfig
 import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, StringSerializer}
-import org.apache.kafka.streams.kstream.Consumed
+import org.apache.kafka.streams.kstream._
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
-import org.apache.kafka.streams.{StreamsBuilder, StreamsConfig, Topology, TopologyTestDriver}
+import org.apache.kafka.streams._
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
 import org.scalatest.FunSpec
 
@@ -94,7 +95,7 @@ class JoinTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaProp
           JoinTopologyBuilder.getAvroPurchaseSerde(
             schemaRegistryHost,
             schemaRegistryPort).deserializer())
-        OutputVerifier.compareKeyValue(outputRecord1, "p1", purchase1WithDiscount)
+        OutputVerifier.compareKeyValue(outputRecord1, "1234", purchase1WithDiscount)
 
         /*val client2 = new Client("fran", 35, false)
         val consumerRecordFactory2 = recordFactory.create("input-topic", "b", client2, 9999L)
@@ -138,10 +139,45 @@ object JoinTopologyBuilder {
 
 
     val builder = new StreamsBuilder()
-    val couponStream = builder.stream(couponInputTopic, Consumed.`with`(Serdes.String(), getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort)))
+    val couponStream: KStream[String, Coupon] = builder.stream(couponInputTopic, Consumed.`with`(Serdes.String(), getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort)))
     val purchaseStream = builder.stream(purchaseInputTopic, Consumed.`with`(Serdes.String(), getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort)))
 
-    purchaseStream.to(outputTopic)
+    val couponProductIdValueMapper = new KeyValueMapper[String, Coupon, String]() {
+
+      @Override
+      def apply(key: String, value: Coupon): String = {
+        value.getProductid.toString
+      }
+    }
+
+    val purchaseProductIdValueMapper = new KeyValueMapper[String, Purchase, String]() {
+
+      @Override
+      def apply(key: String, value: Purchase): String = {
+        value.getProductid.toString
+      }
+    }
+
+    val couponStreamKeyedByProductId: KStream[String, Coupon] = couponStream.selectKey(couponProductIdValueMapper)
+    val purchaseStreamKeyedByProductId: KStream[String, Purchase] = purchaseStream.selectKey(purchaseProductIdValueMapper)
+
+    val couponPurchaseValueJoiner = new ValueJoiner[Coupon, Purchase, Purchase]() {
+
+      @Override
+      def apply(coupon: Coupon, purchase: Purchase): Purchase = {
+        if (coupon.getProductid.equals(purchase.getProductid))
+          //TODO: APPLY THE DISCOUNT!!!!!!!!!
+          new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, 22.50F)
+        else
+          new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, purchase.getAmount)
+      }
+    }
+
+    val outputStream: KStream[String, Purchase] = couponStreamKeyedByProductId.join(purchaseStreamKeyedByProductId,
+      couponPurchaseValueJoiner,
+      JoinWindows.of(TimeUnit.MINUTES.toMillis(5)))
+
+    outputStream.to(outputTopic)
 
     builder.build()
   }
