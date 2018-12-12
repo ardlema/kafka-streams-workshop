@@ -2,7 +2,7 @@
   "type": "record",
   "name": "Purchase",
   "fields": [
-    {"name": "timestamp", "type": "string"},
+    {"name": "timestamp", "type": "long"},
     {"name": "productid",  "type": "string"},
     {"name": "productdescription",  "type": "string"},
     {"name": "amount",  "type": "float"}

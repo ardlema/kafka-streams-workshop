@@ -1,5 +1,6 @@
 package org.ardlema.joining
 
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.{Collections, Properties}
 
@@ -8,11 +9,13 @@ import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import kafka.server.KafkaConfig
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, StringSerializer}
+import org.apache.kafka.streams._
 import org.apache.kafka.streams.kstream._
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
-import org.apache.kafka.streams._
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
+import org.ardlema.solutions.joining.{GenericTimeStampExtractor, SystemClock}
 import org.scalatest.FunSpec
 
 trait KafkaPropertiesJoin {
@@ -22,19 +25,24 @@ trait KafkaPropertiesJoin {
   val zookeeperPortAsInt = zookeeperPort.toInt
   val kafkaHost = "localhost"
   val kafkaPort = "9094"
-  val applicationKey = "filtertapp"
+  val applicationKey = "joinapp"
   val schemaRegistryHost = "localhost"
   val schemaRegistryPort = "8083"
-  val purchaseInputTopic = "purchase-input-topic"
-  val couponInputTopic = "coupon-input-topic"
-  val outputTopic = "joined-output-topic"
+  val purchaseInputTopic = "purchase-input"
+  val couponInputTopic = "coupon-input"
+  val outputTopic = "joined-output"
 }
 
-class JoinTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaPropertiesJoin with KafkaInfra {
+class JoinTopologySpec
+  extends FunSpec
+    with KafkaGlobalProperties
+    with KafkaPropertiesJoin
+    with KafkaInfra
+    with SystemClock {
 
   describe("The topology") {
 
-    it("should join sale events with the promo ones") {
+    it("should join sale events with the promo ones and apply the discounts") {
       val kafkaConfig = new Properties()
       kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
       kafkaConfig.put("zookeeper.host", zookeeperHost)
@@ -55,6 +63,10 @@ class JoinTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaProp
       kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
       kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
       kafkaConfig.put("offsets.topic.replication.factor", "1")
+      kafkaConfig.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "1000")
+      kafkaConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+      //kafkaConfig.put("message.timestamp.type", "LogAppendTime")
+      kafkaConfig.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, new GenericTimeStampExtractor().getClass.getName)
 
       val schemaRegistryConfig = new Properties()
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
@@ -77,14 +89,13 @@ class JoinTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaProp
             schemaRegistryHost,
             schemaRegistryPort).serializer())
 
-        /*String str = "Jun 13 2003 23:11:52.454 UTC";
-          SimpleDateFormat df = new SimpleDateFormat("MMM dd yyyy HH:mm:ss.SSS zzz");
-          Date date = df.parse(str);
-          long epoch = date.getTime();*/
 
-        val coupon1 = new Coupon("Dec 05 2018 09:10:00.000 UTC", "1234", 10F)
-        val purchase1 = new Purchase("Dec 05 2018 09:11:52.454 UTC", "1234", "Green Glass", 25.00F)
-        val purchase1WithDiscount = new Purchase("Dec 05 2018 09:11:52.454 UTC", "1234", "Green Glass", 22.50F)
+        val coupon1Time = now()
+        val coupon1 = new Coupon(coupon1Time.toEpochMilli, "1234", 10F)
+        // Purchase within the five minutes after the coupon - The discount should be applied
+        val coupon1TimePlusTwoMinutes = coupon1Time.plus(Duration.ofMinutes(2))
+        val purchase1 = new Purchase(coupon1TimePlusTwoMinutes.toEpochMilli, "1234", "Red Glass", 25.00F)
+        val purchase1WithDiscount = new Purchase(coupon1TimePlusTwoMinutes.toEpochMilli, "1234", "Red Glass", 22.50F)
         val couponRecordFactory1 = couponRecordFactory.create(couponInputTopic, "c1", coupon1)
         val purchaseRecordFactory1 = purchaseRecordFactory.create(purchaseInputTopic, "p1", purchase1)
 
@@ -97,17 +108,22 @@ class JoinTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaProp
             schemaRegistryPort).deserializer())
         OutputVerifier.compareKeyValue(outputRecord1, "1234", purchase1WithDiscount)
 
-        /*val client2 = new Client("fran", 35, false)
-        val consumerRecordFactory2 = recordFactory.create("input-topic", "b", client2, 9999L)
-        testDriver.pipeInput(consumerRecordFactory2)
-        val outputRecord2 = testDriver.readOutput("output-topic", new StringDeserializer(), FilterTopologyBuilder.getAvroSerde().deserializer())
-        Assert.assertNull(outputRecord2)
 
-        val client3 = new Client("maria", 37, true)
-        val consumerRecordFactory3 = recordFactory.create("input-topic", "c", client3, 9999L)
-        testDriver.pipeInput(consumerRecordFactory3)
-        val outputRecord3 = testDriver.readOutput("output-topic", new StringDeserializer(), FilterTopologyBuilder.getAvroSerde().deserializer())
-        OutputVerifier.compareKeyValue(outputRecord3, "c", client3)*/
+        /*val coupon2 = new Coupon("Dec 05 2018 09:20:00.000 UTC", "5678", 10F)
+        val couponRecordFactory2 = couponRecordFactory.create(couponInputTopic, "c2", coupon2)
+        testDriver.pipeInput(couponRecordFactory2)
+        // We advance the clock 7 minutes
+        // Purchase after five minutes - The discount should NOT be applied
+        val purchase2 = new Purchase("Dec 07 2019 09:27:00.454 UTC", "5678", "Green Glass", 40.00F)
+        val purchaseRecordFactory2 = purchaseRecordFactory.create(purchaseInputTopic, "p2", purchase2)
+        testDriver.pipeInput(purchaseRecordFactory2)
+
+        val outputRecord2 = testDriver.readOutput(outputTopic,
+          new StringDeserializer(),
+          JoinTopologyBuilder.getAvroPurchaseSerde(
+            schemaRegistryHost,
+            schemaRegistryPort).deserializer())
+        Assert.assertNull(outputRecord2)*/
       }
     }
   }
@@ -137,11 +153,6 @@ object JoinTopologyBuilder {
                      purchaseInputTopic: String,
                      outputTopic: String): Topology = {
 
-
-    val builder = new StreamsBuilder()
-    val couponStream: KStream[String, Coupon] = builder.stream(couponInputTopic, Consumed.`with`(Serdes.String(), getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort)))
-    val purchaseStream = builder.stream(purchaseInputTopic, Consumed.`with`(Serdes.String(), getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort)))
-
     val couponProductIdValueMapper = new KeyValueMapper[String, Coupon, String]() {
 
       @Override
@@ -158,6 +169,17 @@ object JoinTopologyBuilder {
       }
     }
 
+
+    val builder = new StreamsBuilder()
+
+    val couponConsumedWith = Consumed.`with`(Serdes.String(),
+      getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort))
+    val couponStream: KStream[String, Coupon] = builder.stream(couponInputTopic, couponConsumedWith)
+
+    val purchaseConsumedWith = Consumed.`with`(Serdes.String(),
+      getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort))
+    val purchaseStream: KStream[String, Purchase] = builder.stream(purchaseInputTopic, purchaseConsumedWith)
+
     val couponStreamKeyedByProductId: KStream[String, Coupon] = couponStream.selectKey(couponProductIdValueMapper)
     val purchaseStreamKeyedByProductId: KStream[String, Purchase] = purchaseStream.selectKey(purchaseProductIdValueMapper)
 
@@ -165,20 +187,21 @@ object JoinTopologyBuilder {
 
       @Override
       def apply(coupon: Coupon, purchase: Purchase): Purchase = {
-        if (coupon.getProductid.equals(purchase.getProductid))
-          //TODO: APPLY THE DISCOUNT!!!!!!!!!
-          new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, 22.50F)
-        else
-          new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, purchase.getAmount)
+          val discount = (purchase.getAmount * coupon.getDiscount) / 100
+          new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, purchase.getAmount - discount)
       }
     }
 
+    val fiveMinuteWindow = JoinWindows.of(TimeUnit.MINUTES.toMillis(10))
     val outputStream: KStream[String, Purchase] = couponStreamKeyedByProductId.join(purchaseStreamKeyedByProductId,
       couponPurchaseValueJoiner,
-      JoinWindows.of(TimeUnit.MINUTES.toMillis(5)))
+      fiveMinuteWindow
+      )
 
     outputStream.to(outputTopic)
 
     builder.build()
   }
 }
+
+
