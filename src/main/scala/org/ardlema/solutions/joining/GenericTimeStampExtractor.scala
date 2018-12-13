@@ -10,11 +10,11 @@ class GenericTimeStampExtractor extends TimestampExtractor {
     val topic = record.topic()
 
     topic match {
-      case "purchase-input" => {
+      case "purchase-input" | "purchase-not-join-input" => {
         val purchase = record.value().asInstanceOf[Purchase]
         purchase.getTimestamp
       }
-      case "coupon-input" => {
+      case "coupon-input" | "coupon-not-join-input" => {
         val coupon = record.value().asInstanceOf[Coupon]
         coupon.getTimestamp
       }
