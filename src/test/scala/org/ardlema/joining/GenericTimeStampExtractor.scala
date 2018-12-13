@@ -1,4 +1,4 @@
-package org.ardlema.solutions.joining
+package org.ardlema.joining
 
 import JavaSessionize.avro.{Coupon, Purchase}
 import org.apache.kafka.clients.consumer.ConsumerRecord

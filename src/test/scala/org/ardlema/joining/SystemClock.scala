@@ -1,4 +1,4 @@
-package org.ardlema.solutions.joining
+package org.ardlema.joining
 
 import java.time.Instant
 

@@ -13,7 +13,6 @@ import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, String
 import org.apache.kafka.streams._
 import org.apache.kafka.streams.test.ConsumerRecordFactory
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
-import org.ardlema.solutions.joining.{GenericTimeStampExtractor, JoinTopologyBuilder, SystemClock}
 import org.junit.Assert
 import org.scalatest.{FlatSpec, Matchers}
 
