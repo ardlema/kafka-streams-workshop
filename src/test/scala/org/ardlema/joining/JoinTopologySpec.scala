@@ -1,24 +1,69 @@
 package org.ardlema.joining
 
 import java.time.Duration
-import java.util.concurrent.TimeUnit
-import java.util.{Collections, Properties}
+import java.util.Properties
 
 import JavaSessionize.avro.{Coupon, Purchase}
 import io.confluent.kafka.schemaregistry.rest.SchemaRegistryConfig
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
-import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import kafka.server.KafkaConfig
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{Serdes, StringDeserializer, StringSerializer}
 import org.apache.kafka.streams._
-import org.apache.kafka.streams.kstream._
 import org.apache.kafka.streams.test.ConsumerRecordFactory
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
-import org.ardlema.solutions.joining.{GenericTimeStampExtractor, SystemClock}
+import org.ardlema.solutions.joining.{GenericTimeStampExtractor, JoinTopologyBuilder, SystemClock}
 import org.junit.Assert
 import org.scalatest.{FlatSpec, Matchers}
+
+
+trait KafkaPropertiesJsonConfigurer extends KafkaGlobalProperties {
+
+  def getKafkaConfigProps(kafkaHost: String,
+                          kafkaPort: String,
+                          zookeeperHost: String,
+                          zookeeperPort: String,
+                          schemaRegistryHost: String,
+                          schemaRegistryPort: String,
+                          applicationKey: String,
+                          logDir: String): Properties = {
+    val kafkaConfig = new Properties()
+    kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
+    kafkaConfig.put("zookeeper.host", zookeeperHost)
+    kafkaConfig.put("zookeeper.port", zookeeperPort)
+    kafkaConfig.put(schemaRegistryUrlKey, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
+    kafkaConfig.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName())
+    kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, JoinTopologyBuilder.getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort).getClass.getName)
+    kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
+    kafkaConfig.put(groupIdKey, groupIdValue)
+    kafkaConfig.put(KafkaConfig.BrokerIdProp, defaultBrokerIdProp)
+    kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
+    kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
+    kafkaConfig.put(KafkaConfig.NumPartitionsProp, defaultPartitions)
+    kafkaConfig.put(KafkaConfig.AutoCreateTopicsEnableProp, defaultAutoCreateTopics)
+    kafkaConfig.put(applicationIdKey, applicationKey)
+    kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
+    kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
+    kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
+    kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
+    kafkaConfig.put("offsets.topic.replication.factor", "1")
+    kafkaConfig.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "1000")
+    kafkaConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+    kafkaConfig.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, new GenericTimeStampExtractor().getClass.getName)
+    kafkaConfig.put("log.dir", logDir)
+    kafkaConfig
+  }
+
+  def getSchemaRegistryProps(kafkaHost: String, kafkaPort: String, schemaRegistryPort: String): Properties = {
+    val schemaRegistryConfig = new Properties()
+    schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
+    schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
+    schemaRegistryConfig.put("port", schemaRegistryPort)
+
+    schemaRegistryConfig
+  }
+}
 
 trait KafkaPropertiesJoin {
 
@@ -33,61 +78,37 @@ trait KafkaPropertiesJoin {
   val purchaseInputTopic = "purchase-input"
   val couponInputTopic = "coupon-input"
   val outputTopic = "joined-output"
+  val logDir = "/tmp/kafka-join-logs"
 }
 
 trait KafkaPropertiesNotJoin {
 
   val zookeeperHost = "localhost"
-  val zookeeperPort = "2184"
+  val zookeeperPort = "2185"
   val zookeeperPortAsInt = zookeeperPort.toInt
   val kafkaHost = "localhost"
-  val kafkaPort = "9095"
+  val kafkaPort = "9096"
   val applicationKey = "notjoinapp"
   val schemaRegistryHost = "localhost"
-  val schemaRegistryPort = "8084"
-  val purchaseInputTopic = "purchase-not-join-input"
-  val couponInputTopic = "coupon-not-join-input"
+  val schemaRegistryPort = "8085"
+  val purchaseInputTopic = "purchase-notjoin-input"
+  val couponInputTopic = "coupon-notjoin-input"
   val outputTopic = "not-joined-output"
+  val logDir = "/tmp/kafka-not-join-logs"
 }
 
 class JoinTopologySpec
   extends FlatSpec
-    with KafkaGlobalProperties
     with KafkaPropertiesJoin
     with KafkaInfra
     with SystemClock
-    with Matchers {
+    with Matchers
+    with KafkaPropertiesJsonConfigurer {
 
     "The topology" should "join sale events with the promo ones and apply the discounts" in new KafkaPropertiesJoin {
-      val kafkaConfig = new Properties()
-      kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
-      kafkaConfig.put("zookeeper.host", zookeeperHost)
-      kafkaConfig.put("zookeeper.port", zookeeperPort)
-      kafkaConfig.put(schemaRegistryUrlKey, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
-      kafkaConfig.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName())
-      kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, JoinTopologyBuilder.getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort).getClass.getName)
-      kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
-      kafkaConfig.put(groupIdKey, groupIdValue)
-      kafkaConfig.put(KafkaConfig.BrokerIdProp, defaultBrokerIdProp)
-      kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
-      kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
-      kafkaConfig.put(KafkaConfig.NumPartitionsProp, defaultPartitions)
-      kafkaConfig.put(KafkaConfig.AutoCreateTopicsEnableProp, defaultAutoCreateTopics)
-      kafkaConfig.put(applicationIdKey, applicationKey)
-      kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
-      kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
-      kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
-      kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
-      kafkaConfig.put("offsets.topic.replication.factor", "1")
-      kafkaConfig.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "1000")
-      kafkaConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-      kafkaConfig.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, new GenericTimeStampExtractor().getClass.getName)
+      val kafkaConfig = getKafkaConfigProps(kafkaHost, kafkaPort, zookeeperHost, zookeeperPort, schemaRegistryHost, schemaRegistryPort, applicationKey, logDir)
 
-      val schemaRegistryConfig = new Properties()
-      schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
-      schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
-      schemaRegistryConfig.put("port", schemaRegistryPort)
-
+      val schemaRegistryConfig = getSchemaRegistryProps(kafkaHost, kafkaPort, schemaRegistryPort)
 
       withKafkaServerAndSchemaRegistry(kafkaConfig, schemaRegistryConfig, zookeeperPortAsInt) { () =>
         val testDriver = new TopologyTestDriver(JoinTopologyBuilder.createTopology(schemaRegistryHost,
@@ -121,38 +142,15 @@ class JoinTopologySpec
             schemaRegistryHost,
             schemaRegistryPort).deserializer())
         outputRecord1.value().getAmount should be(22.50F)
+
+        testDriver.close()
       }
     }
 
     "The topology" should "not join sale events when the purchase exceeds the timeout" in new KafkaPropertiesNotJoin {
-      val kafkaConfig = new Properties()
-      kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
-      kafkaConfig.put("zookeeper.host", zookeeperHost)
-      kafkaConfig.put("zookeeper.port", zookeeperPort)
-      kafkaConfig.put(schemaRegistryUrlKey, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
-      kafkaConfig.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName())
-      kafkaConfig.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, JoinTopologyBuilder.getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort).getClass.getName)
-      kafkaConfig.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort""")
-      kafkaConfig.put(groupIdKey, groupIdValue)
-      kafkaConfig.put(KafkaConfig.BrokerIdProp, defaultBrokerIdProp)
-      kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
-      kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
-      kafkaConfig.put(KafkaConfig.NumPartitionsProp, defaultPartitions)
-      kafkaConfig.put(KafkaConfig.AutoCreateTopicsEnableProp, defaultAutoCreateTopics)
-      kafkaConfig.put(applicationIdKey, applicationKey)
-      kafkaConfig.put(bootstrapServerKey, s"""$kafkaHost:$kafkaPort""")
-      kafkaConfig.put(KafkaConfig.HostNameProp, kafkaHost)
-      kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
-      kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
-      kafkaConfig.put("offsets.topic.replication.factor", "1")
-      kafkaConfig.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "1000")
-      kafkaConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-      kafkaConfig.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, new GenericTimeStampExtractor().getClass.getName)
+      val kafkaConfig = getKafkaConfigProps(kafkaHost, kafkaPort, zookeeperHost, zookeeperPort, schemaRegistryHost, schemaRegistryPort, applicationKey, logDir)
 
-      val schemaRegistryConfig = new Properties()
-      schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
-      schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_TOPIC_CONFIG, "schemaregistrytopic")
-      schemaRegistryConfig.put("port", schemaRegistryPort)
+      val schemaRegistryConfig = getSchemaRegistryProps(kafkaHost, kafkaPort, schemaRegistryPort)
 
 
       withKafkaServerAndSchemaRegistry(kafkaConfig, schemaRegistryConfig, zookeeperPortAsInt) { () =>
@@ -173,12 +171,11 @@ class JoinTopologySpec
 
         val coupon2Time = now()
         val coupon2 = new Coupon(coupon2Time.toEpochMilli, "5678", 10F)
-        // Purchase within the five minutes after the coupon - The discount should be applied
-        val coupon2TimePlusEightMinutes = coupon2Time.plus(Duration.ofMinutes(12))
+        // Purchase after the five minutes of the coupon release - The discount should NOT be applied
+        val coupon2TimePlusEightMinutes = coupon2Time.plus(Duration.ofMinutes(8))
         val purchase2 = new Purchase(coupon2TimePlusEightMinutes.toEpochMilli, "5678", "White Glass", 25.00F)
         val couponRecordFactory2 = couponRecordFactory.create(couponInputTopic, "c2", coupon2)
         val purchaseRecordFactory2 = purchaseRecordFactory.create(purchaseInputTopic, "p2", purchase2)
-
         testDriver.pipeInput(couponRecordFactory2)
         testDriver.pipeInput(purchaseRecordFactory2)
         val outputRecord2 = testDriver.readOutput(outputTopic,
@@ -187,83 +184,12 @@ class JoinTopologySpec
             schemaRegistryHost,
             schemaRegistryPort).deserializer())
         Assert.assertNull(outputRecord2)
+
+        testDriver.close()
       }
     }
 }
 
-object JoinTopologyBuilder {
 
-  def getAvroPurchaseSerde(schemaRegistryHost: String, schemaRegistryPort: String) = {
-    val specificAvroSerde = new SpecificAvroSerde[Purchase]()
-    specificAvroSerde.configure(
-      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort/"""),
-      false)
-    specificAvroSerde
-  }
-
-  def getAvroCouponSerde(schemaRegistryHost: String, schemaRegistryPort: String) = {
-    val specificAvroSerde = new SpecificAvroSerde[Coupon]()
-    specificAvroSerde.configure(
-      Collections.singletonMap(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, s"""http://$schemaRegistryHost:$schemaRegistryPort/"""),
-      false)
-    specificAvroSerde
-  }
-
-  def createTopology(schemaRegistryHost: String,
-                     schemaRegistryPort: String,
-                     couponInputTopic: String,
-                     purchaseInputTopic: String,
-                     outputTopic: String): Topology = {
-
-    val couponProductIdValueMapper = new KeyValueMapper[String, Coupon, String]() {
-
-      @Override
-      def apply(key: String, value: Coupon): String = {
-        value.getProductid.toString
-      }
-    }
-
-    val purchaseProductIdValueMapper = new KeyValueMapper[String, Purchase, String]() {
-
-      @Override
-      def apply(key: String, value: Purchase): String = {
-        value.getProductid.toString
-      }
-    }
-
-
-    val builder = new StreamsBuilder()
-
-    val couponConsumedWith = Consumed.`with`(Serdes.String(),
-      getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort))
-    val couponStream: KStream[String, Coupon] = builder.stream(couponInputTopic, couponConsumedWith)
-
-    val purchaseConsumedWith = Consumed.`with`(Serdes.String(),
-      getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort))
-    val purchaseStream: KStream[String, Purchase] = builder.stream(purchaseInputTopic, purchaseConsumedWith)
-
-    val couponStreamKeyedByProductId: KStream[String, Coupon] = couponStream.selectKey(couponProductIdValueMapper)
-    val purchaseStreamKeyedByProductId: KStream[String, Purchase] = purchaseStream.selectKey(purchaseProductIdValueMapper)
-
-    val couponPurchaseValueJoiner = new ValueJoiner[Coupon, Purchase, Purchase]() {
-
-      @Override
-      def apply(coupon: Coupon, purchase: Purchase): Purchase = {
-          val discount = (purchase.getAmount * coupon.getDiscount) / 100
-          new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, purchase.getAmount - discount)
-      }
-    }
-
-    val fiveMinuteWindow = JoinWindows.of(TimeUnit.MINUTES.toMillis(5)).after(TimeUnit.MINUTES.toMillis(5))
-    val outputStream: KStream[String, Purchase] = couponStreamKeyedByProductId.join(purchaseStreamKeyedByProductId,
-      couponPurchaseValueJoiner,
-      fiveMinuteWindow
-      )
-
-    outputStream.to(outputTopic)
-
-    builder.build()
-  }
-}
 
 
