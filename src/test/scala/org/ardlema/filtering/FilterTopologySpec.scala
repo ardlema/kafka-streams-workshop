@@ -23,6 +23,7 @@ trait KafkaPropertiesFilter {
   val applicationKey = "filtertapp"
   val schemaRegistryHost = "localhost"
   val schemaRegistryPort = "8081"
+  val logDir = "/tmp/kafka-filter-logs"
 }
 
 class FilterTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaPropertiesFilter with KafkaInfra {
@@ -50,6 +51,7 @@ class FilterTopologySpec extends FunSpec with KafkaGlobalProperties with KafkaPr
       kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
       kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
       kafkaConfig.put("offsets.topic.replication.factor", "1")
+      kafkaConfig.put("log.dir", logDir)
 
       val schemaRegistryConfig = new Properties()
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")

@@ -25,6 +25,7 @@ trait KafkaPropertiesEnrichment {
   val inputTopic = "input-topic-enrichment"
   val outputTopic = "output-topic-enrichment-saleandstore"
   val outputTopicError = "output-topic-enrichment-error"
+  val logDir = "/tmp/kafka-enrichment-logs"
 }
 
 class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalProperties with KafkaPropertiesEnrichment with KafkaInfra {
@@ -54,6 +55,7 @@ class EnrichmentTopologySpec extends FunSpec with Matchers with KafkaGlobalPrope
       kafkaConfig.put(KafkaConfig.PortProp, kafkaPort)
       kafkaConfig.put(cacheMaxBytesBufferingKey, "0")
       kafkaConfig.put("offsets.topic.replication.factor", "1")
+      kafkaConfig.put("log.dir", logDir)
 
       val schemaRegistryConfig = new Properties()
       schemaRegistryConfig.put(SchemaRegistryConfig.KAFKASTORE_BOOTSTRAP_SERVERS_CONFIG, s"""PLAINTEXT://$kafkaHost:$kafkaPort""")
