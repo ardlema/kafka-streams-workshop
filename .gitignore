@@ -3,3 +3,6 @@ target/
 #IntelliJ IDEA
 *.iml
 .idea/
+
+#Maven
+dependency-reduced-pom.xml
