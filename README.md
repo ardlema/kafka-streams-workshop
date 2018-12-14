@@ -17,6 +17,10 @@ I will be adding more challenges so please stay tuned. Collaborations, ideas on 
 
 ## 1. Filtering VIP clients
 
+
+<details>
+  <summary>Click to expand!</summary>
+  
 In this challenge you will need to filter a stream of client events. These events will follow the following structure:
 
 ```
@@ -40,6 +44,7 @@ The test should execute properly but it also should fail (do not worry you need 
 2. Now it is time to make the test pass! To do so goes to the FilterTopologyBuilder class (within the filtering package)
 3. Add your code to the filterVIPClients method
 4. Execute the test again until you get the green flag ;)
+</details>
 
 ## 2. Enriching sale events
 
