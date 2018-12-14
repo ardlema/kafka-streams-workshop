@@ -9,12 +9,6 @@ I will be adding more challenges so please stay tuned. Collaborations, ideas on 
 
 # The challenges
 
-[1. Filtering events](#1-filtering-vip-clients)
-
-[2. Enriching sale events](#2-enriching-sale-events)
-
-[3. Joining coupons and purchase events](#3-joining-coupons-and-purchase-events)
-
 ## 1. Filtering VIP clients
 
 
