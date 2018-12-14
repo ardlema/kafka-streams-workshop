@@ -48,70 +48,78 @@ The test should execute properly but it also should fail (do not worry you need 
 
 ## 2. Enriching sale events
 
-In this challenge you will be facing a pretty common use case when working with streaming systems: enrich the events with information from a third-party system. In this scenario
-for the sake of simplicity we will be using an in-memory hashmap to enrich events that simulate sales. The challenge is quite simple, the events will follow the following structure:
+<details>
+  <summary>Click to expand!</summary>
+  
+  In this challenge you will be facing a pretty common use case when working with streaming systems: enrich the events with information from a third-party system. In this scenario
+  for the sake of simplicity we will be using an in-memory hashmap to enrich events that simulate sales. The challenge is quite simple, the events will follow the following structure:
+  
+  ```
+      {"name": "amount", "type": "float"},
+      {"name": "product",  "type": "string"},
+      {"name": "storeid",  "type": "int"}
+  ```
+  
+  On receiving an event you should check if the storeid exists within the storesInformation hashmap, if so, you should pick up the values storeAddress and storeCity from the hashmap, create a  
+  new event with the following structure:
+  
+  ```
+      {"name": "amount", "type": "float"},
+      {"name": "product",  "type": "string"},
+      {"name": "storeaddress",  "type": "string"},
+      {"name": "storecity", "type": "string"}
+  ```
+  
+  and send this event to the outputtopic. If the hashmap does not include the storeid of the event you should redirect this event to a error output topic.
+  
+  If you have any further questions we strongly recommend to have a look at the EnrichmentTopologySpec test.
+  
+  ### Instructions
+  
+  1. Start by executing the EnrichmentTopologySpec and check out that the tests run properly and fail
+  2. Go to the EnrichmentTopologyBuilder class (the one within the enrichment package)
+  3. Add your code within the createTopology method
+  4. Execute the test again until it passes
+</details>
 
-```
-    {"name": "amount", "type": "float"},
-    {"name": "product",  "type": "string"},
-    {"name": "storeid",  "type": "int"}
-```
-
-On receiving an event you should check if the storeid exists within the storesInformation hashmap, if so, you should pick up the values storeAddress and storeCity from the hashmap, create a  
-new event with the following structure:
-
-```
-    {"name": "amount", "type": "float"},
-    {"name": "product",  "type": "string"},
-    {"name": "storeaddress",  "type": "string"},
-    {"name": "storecity", "type": "string"}
-```
-
-and send this event to the outputtopic. If the hashmap does not include the storeid of the event you should redirect this event to a error output topic.
-
-If you have any further questions we strongly recommend to have a look at the EnrichmentTopologySpec test.
-
-### Instructions
-
-1. Start by executing the EnrichmentTopologySpec and check out that the tests run properly and fail
-2. Go to the EnrichmentTopologyBuilder class (the one within the enrichment package)
-3. Add your code within the createTopology method
-4. Execute the test again until it passes
 
 ## 3. Joining coupons and purchase events
 
-Let's say that you are working for an on-line retail company. The company wants to launch an innovative marketing campaign to apply discounts to products. The idea is to emit coupons or offers that will be available
-just for 5 minutes, this way the clients that want to take advantage of the discount should buy the product within the next 5 minutes after the coupon has been launched.
-
-To pass this challenge you have to join the coupons and purchase streams (taking into account the 5 minutes slot!!)
-
-See following the coupon events structure:
-
-```
-    {"name": "timestamp", "type": "long"},
-    {"name": "productid",  "type": "string"},
-    {"name": "discount",  "type": "float"}
-```
-
-And this is the purchase events structure:
-
-```
-    {"name": "timestamp", "type": "long"},
-    {"name": "productid",  "type": "string"},
-    {"name": "productdescription",  "type": "string"},
-    {"name": "amount",  "type": "float"}
-```
-
-When you are dealing with this challenge take into account that the stream events will join by their key!
-
-### Instructions
-
-1. Start by executing the JoinTopologySpec and check out that the tests run properly and fail
-2. Have a look at the GenericTimeStampExtractor that I have prepared for you (to better understand how we deal with message event times)
-3. Go to the JoinTopologyBuilder class (the one within the joining package)
-4. Add your code within the createTopology method (there are some tips that might help you)
-5. Execute the test again until it passes
-
+<details>
+  <summary>Click to expand!</summary>
+  
+  Let's say that you are working for an on-line retail company. The company wants to launch an innovative marketing campaign to apply discounts to products. The idea is to emit coupons or offers that will be available
+  just for 5 minutes, this way the clients that want to take advantage of the discount should buy the product within the next 5 minutes after the coupon has been launched.
+  
+  To pass this challenge you have to join the coupons and purchase streams (taking into account the 5 minutes slot!!)
+  
+  See following the coupon events structure:
+  
+  ```
+      {"name": "timestamp", "type": "long"},
+      {"name": "productid",  "type": "string"},
+      {"name": "discount",  "type": "float"}
+  ```
+  
+  And this is the purchase events structure:
+  
+  ```
+      {"name": "timestamp", "type": "long"},
+      {"name": "productid",  "type": "string"},
+      {"name": "productdescription",  "type": "string"},
+      {"name": "amount",  "type": "float"}
+  ```
+  
+  When you are dealing with this challenge take into account that the stream events will join by their key!
+  
+  ### Instructions
+  
+  1. Start by executing the JoinTopologySpec and check out that the tests run properly and fail
+  2. Have a look at the GenericTimeStampExtractor that I have prepared for you (to better understand how we deal with message event times)
+  3. Go to the JoinTopologyBuilder class (the one within the joining package)
+  4. Add your code within the createTopology method (there are some tips that might help you)
+  5. Execute the test again until it passes
+</details>
 
 # Solutions
 
