@@ -115,6 +115,47 @@ The test should execute properly but it also should fail (do not worry you need 
   5. Execute the test again until it passes
 </details>
 
+## 4. Aggregating songs data
+
+
+<details>
+  <summary>Click to expand!</summary>
+  
+In this challenge you will need to aggregate a stream of song events. These events will follow the following structure:
+
+```
+    {"name": "title", "type": "string"},
+    {"name": "duration", "type": "int"},
+    {"name": "artist",  "type": "string"},
+    {"name": "album",  "type": "string"},
+    {"name": "genre", "type": "string"}
+```
+
+To make the test pass you must aggregate the songs by artist, let's say that our stream has just received the following songs:
+
+```
+new Song("Closer", 122, "Nine Inch Nails", "The Downward Spiral", "rock")
+new Song("Heresy", 98, "Nine Inch Nails", "The Downward Spiral", "rock")
+new Song("Wide Awake", 265, "Audioslave", "Revelations", "rock")
+new Song("Wish", 112, "Nine Inch Nails", "Broken", "rock")
+new Song("Until we fall", 215, "Audioslave", "Revelations", "rock")
+```
+
+As we said, our streaming app should aggregate the songs by artist (generating internally a Ktable) and should output the results to out output topic. On receiving the previous songs our output should be:
+
+```
+Nine Inch Nails     3
+Audioslave          2
+```
+
+### Instructions
+
+1. Start by executing the test (AggregateTopologySpec) to make sure that the test runs smoothly. The test should execute properly but it also should fail (do not worry you need to make it pass).
+2. Now it is time to make the test pass! To do so goes to the AggregateTopologyBuilder class (within the aggregating package)
+3. Add your code to the createTopology(...) method
+4. Execute the test again until you get the green flag ;)
+</details>
+
 # Solutions
 
 There is a solutions package where you will be able to find my proposed solution for the challenges. Try not to cheat and make the test pass on your own.
