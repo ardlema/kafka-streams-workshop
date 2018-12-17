@@ -15,7 +15,6 @@ import scala.util.Random
 import org.apache.kafka.streams._
 import org.apache.kafka.streams.test.{ConsumerRecordFactory, OutputVerifier}
 import org.ardlema.infra.{KafkaGlobalProperties, KafkaInfra}
-import org.ardlema.solutions.aggregating.AggregateTopologyBuilder
 import org.scalatest.{BeforeAndAfter, FunSpec}
 
 
