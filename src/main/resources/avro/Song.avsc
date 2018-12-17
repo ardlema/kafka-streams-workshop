@@ -1,0 +1,11 @@
+{"namespace": "JavaSessionize.avro",
+  "type": "record",
+  "name": "Song",
+  "fields": [
+    {"name": "title", "type": "string"},
+    {"name": "duration", "type": "int"},
+    {"name": "artist",  "type": "string"},
+    {"name": "album",  "type": "string"},
+    {"name": "genre", "type": "string"}
+  ]
+}
