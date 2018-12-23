@@ -5,13 +5,14 @@ import java.util.Collections
 import JavaSessionize.avro.Client
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
-import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.kstream.{Consumed, KStream, Predicate}
-import org.apache.kafka.streams.{StreamsBuilder, Topology}
+import org.apache.kafka.common.serialization.Serde
+import org.apache.kafka.streams.Topology
+import org.apache.kafka.streams.scala.ImplicitConversions._
+import org.apache.kafka.streams.scala.kstream.KStream
+import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
 
 object FilterTopologyBuilder {
 
-  //TODO: PASS IN SCHEMA REGISTRY PROPS
   def getAvroSerde() = {
     val specificAvroSerde = new SpecificAvroSerde[Client]()
     specificAvroSerde.configure(
@@ -21,22 +22,17 @@ object FilterTopologyBuilder {
   }
 
   def createTopology(): Topology = {
+    implicit val keySerde: Serde[String] = Serdes.String
+    implicit val valueSerde: SpecificAvroSerde[Client] = getAvroSerde()
 
     val builder = new StreamsBuilder()
-    val initialStream = builder.stream("input-topic", Consumed.`with`(Serdes.String(), getAvroSerde()))
-    val vipClients = filterVIPClients(initialStream)
-    vipClients.to("output-topic")
+    val initialStream: KStream[String, Client] = builder.stream("input-topic")
+    val vipClientsStream = filterVIPClients(initialStream)
+    vipClientsStream.to("output-topic")
     builder.build()
   }
 
   def filterVIPClients(clientStream: KStream[String, Client]): KStream[String, Client] = {
-    val isVipPredicate = new Predicate[String, Client]() {
-      @Override
-      def test(key: String, client: Client): Boolean = {
-        client.getVip.booleanValue()
-      }
-    }
-
-    clientStream.filter(isVipPredicate)
+    clientStream.filter((_, client) => client.getVip)
   }
 }
