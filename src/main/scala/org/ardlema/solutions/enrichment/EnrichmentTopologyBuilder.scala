@@ -5,9 +5,11 @@ import java.util.Collections
 import JavaSessionize.avro.{Sale, SaleAndStore}
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
-import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.kstream.{Consumed, KStream, Predicate, ValueMapper}
-import org.apache.kafka.streams.{StreamsBuilder, Topology}
+import org.apache.kafka.common.serialization.{Serde, Serdes}
+import org.apache.kafka.streams.Topology
+import org.apache.kafka.streams.scala.ImplicitConversions._
+import org.apache.kafka.streams.scala.StreamsBuilder
+import org.apache.kafka.streams.scala.kstream.KStream
 
 object EnrichmentTopologyBuilder {
 
@@ -33,44 +35,38 @@ object EnrichmentTopologyBuilder {
   }
 
   def createTopology(schemaRegistryHost: String,
-                     schemaRegistryPort: String,
-                     inputTopic: String,
-                     outputTopic: String,
-                     outputTopicError: String): Topology = {
+    schemaRegistryPort: String,
+    inputTopic: String,
+    outputTopic: String,
+    outputTopicError: String): Topology = {
 
+    implicit val serdes: Serde[String] = Serdes.String()
+    implicit val avroSaleSerde: SpecificAvroSerde[Sale] = getAvroSaleSerde(schemaRegistryHost, schemaRegistryPort)
+    implicit val avroSaleAndStoreSerde: SpecificAvroSerde[SaleAndStore] = getAvroSaleAndStoreSerde(schemaRegistryHost, schemaRegistryPort)
+
+    val existsStoreId: (String, Sale) => Boolean = (_, sale) => storesInformation.contains(sale.getStoreid)
+
+    val notExistsStoreId: (String, Sale) => Boolean = (_, sale) => !storesInformation.contains(sale.getStoreid)
+
+    val saleToStore: Sale => SaleAndStore = (sale: Sale) => {
+      val storeInfo = storesInformation(sale.getStoreid)
+      new SaleAndStore(
+      sale.getAmount,
+      sale.getProduct,
+      storeInfo.storeAddress,
+      storeInfo.storeCity)
+    }
 
     val builder = new StreamsBuilder()
-    val initialStream = builder.stream(inputTopic, Consumed.`with`(Serdes.String(), getAvroSaleSerde(schemaRegistryHost, schemaRegistryPort)))
+    val initialStream: KStream[String, Sale] = builder.stream(inputTopic)
+    val splittedStream: Array[KStream[String, Sale]] = initialStream.branch(existsStoreId, notExistsStoreId)
+    val saleAndStoreStream: KStream[String, SaleAndStore] = splittedStream(0)
+      .mapValues[SaleAndStore](saleToStore)
+    val errorStream = splittedStream(1)
 
-    val existStore = new Predicate[String, Sale]() {
-      @Override
-      def test(key: String, sale: Sale): Boolean = {
-        storesInformation.contains(sale.getStoreid)
-      }
-    }
-
-    val notExistStore = new Predicate[String, Sale]() {
-      @Override
-      def test(key: String, sale: Sale): Boolean = {
-        !storesInformation.contains(sale.getStoreid)
-      }
-    }
-
-    val splittedStream = initialStream.branch(existStore, notExistStore)
-
-    salesMatchingWithStores(splittedStream(0)).to(outputTopic)
-    splittedStream(1).to(outputTopicError)
+    saleAndStoreStream.to(outputTopic)
+    errorStream.to(outputTopicError)
 
     builder.build()
-  }
-
-  private def salesMatchingWithStores(stream: KStream[String, Sale]) = {
-    stream.mapValues[SaleAndStore](new ValueMapper[Sale, SaleAndStore]() {
-      @Override
-      def apply(sale: Sale): SaleAndStore = {
-        val storeInfo = storesInformation(sale.getStoreid)
-        new SaleAndStore(sale.getAmount, sale.getProduct, storeInfo.storeAddress, storeInfo.storeCity)
-      }
-    })
   }
 }
