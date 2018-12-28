@@ -1,14 +1,18 @@
 package org.ardlema.solutions.joining
 
 import java.util.Collections
-import java.util.concurrent.TimeUnit
 
 import JavaSessionize.avro.{Coupon, Purchase}
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
-import org.apache.kafka.common.serialization.Serdes
-import org.apache.kafka.streams.{StreamsBuilder, Topology}
-import org.apache.kafka.streams.kstream._
+import org.apache.kafka.common.serialization.Serde
+import org.apache.kafka.streams.Topology
+import org.apache.kafka.streams.kstream.JoinWindows
+import org.apache.kafka.streams.scala.ImplicitConversions._
+import org.apache.kafka.streams.scala.kstream.KStream
+import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
+
+import scala.concurrent.duration._
 
 object JoinTopologyBuilder {
 
@@ -34,52 +38,30 @@ object JoinTopologyBuilder {
                      purchaseInputTopic: String,
                      outputTopic: String): Topology = {
 
-    val couponProductIdValueMapper = new KeyValueMapper[String, Coupon, String]() {
+    implicit val stringSerde: Serde[String] = Serdes.String
+    implicit val avroPurchaseSerde: SpecificAvroSerde[Purchase] = getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort)
+    implicit val avroCouponSerde: SpecificAvroSerde[Coupon] = getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort)
 
-      @Override
-      def apply(key: String, value: Coupon): String = {
-        value.getProductid.toString
-      }
+    val couponPurchaseValueJoiner: (Coupon, Purchase) => Purchase = (coupon: Coupon, purchase: Purchase) => {
+      val discount = coupon.getDiscount * purchase.getAmount / 100
+      new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, purchase.getAmount - discount)
     }
 
-    val purchaseProductIdValueMapper = new KeyValueMapper[String, Purchase, String]() {
-
-      @Override
-      def apply(key: String, value: Purchase): String = {
-        value.getProductid.toString
-      }
-    }
-
+    val fiveMinuteWindow: JoinWindows = JoinWindows.of(5.minutes.toMillis).after(5.minutes.toMillis)
 
     val builder = new StreamsBuilder()
 
-    val couponConsumedWith = Consumed.`with`(Serdes.String(),
-      getAvroCouponSerde(schemaRegistryHost, schemaRegistryPort))
-    val couponStream: KStream[String, Coupon] = builder.stream(couponInputTopic, couponConsumedWith)
+    val initialCouponStream: KStream[String, Coupon] = builder.stream(couponInputTopic)
+    val initialPurchaseStream: KStream[String, Purchase] = builder.stream(purchaseInputTopic)
 
-    val purchaseConsumedWith = Consumed.`with`(Serdes.String(),
-      getAvroPurchaseSerde(schemaRegistryHost, schemaRegistryPort))
-    val purchaseStream: KStream[String, Purchase] = builder.stream(purchaseInputTopic, purchaseConsumedWith)
+    val couponStreamKeyedByProductId: KStream[String, Coupon] = initialCouponStream
+      .selectKey((_, coupon) => coupon.getProductid.toString)
+    val purchaseStreamKeyedByProductId: KStream[String, Purchase] = initialPurchaseStream
+      .selectKey((_, purchase) => purchase.getProductid.toString)
 
-    val couponStreamKeyedByProductId: KStream[String, Coupon] = couponStream.selectKey(couponProductIdValueMapper)
-    val purchaseStreamKeyedByProductId: KStream[String, Purchase] = purchaseStream.selectKey(purchaseProductIdValueMapper)
-
-    val couponPurchaseValueJoiner = new ValueJoiner[Coupon, Purchase, Purchase]() {
-
-      @Override
-      def apply(coupon: Coupon, purchase: Purchase): Purchase = {
-        val discount = (purchase.getAmount * coupon.getDiscount) / 100
-        new Purchase(purchase.getTimestamp, purchase.getProductid, purchase.getProductdescription, purchase.getAmount - discount)
-      }
-    }
-
-    val fiveMinuteWindow = JoinWindows.of(TimeUnit.MINUTES.toMillis(5)).after(TimeUnit.MINUTES.toMillis(5))
-    val outputStream: KStream[String, Purchase] = couponStreamKeyedByProductId.join(purchaseStreamKeyedByProductId,
-      couponPurchaseValueJoiner,
-      fiveMinuteWindow
-    )
-
-    outputStream.to(outputTopic)
+    couponStreamKeyedByProductId
+      .join(purchaseStreamKeyedByProductId)(couponPurchaseValueJoiner, fiveMinuteWindow)
+      .to(outputTopic)
 
     builder.build()
   }
