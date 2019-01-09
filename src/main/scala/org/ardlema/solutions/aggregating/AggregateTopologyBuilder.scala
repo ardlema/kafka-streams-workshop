@@ -1,14 +1,16 @@
 package org.ardlema.solutions.aggregating
 
-import java.lang.{Long => JLong}
 import java.util.Collections
 
 import JavaSessionize.avro.Song
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
-import org.apache.kafka.common.serialization.{Serde, Serdes}
-import org.apache.kafka.streams.{KeyValue, StreamsBuilder, Topology}
-import org.apache.kafka.streams.kstream._
+import org.apache.kafka.common.serialization.Serde
+import org.apache.kafka.streams.Topology
+import org.apache.kafka.streams.scala.ImplicitConversions._
+import org.apache.kafka.streams.scala.kstream.{KGroupedStream, KStream, KTable}
+import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
+
 
 object AggregateTopologyBuilder {
 
@@ -25,26 +27,23 @@ object AggregateTopologyBuilder {
                      inputTopic: String,
                      outputTopic: String): Topology = {
 
-    val builder = new StreamsBuilder()
-    val initialStream = builder.stream(inputTopic, Consumed.`with`(Serdes.String(), getAvroSongSerde(schemaRegistryHost, schemaRegistryPort)))
 
-    val artistCount = new KeyValueMapper[String, Song, KeyValue[String, JLong]]() {
-
-      @Override
-      def apply(key: String, song: Song): KeyValue[String, JLong] = {
-        new KeyValue[String, JLong](song.getArtist.toString, 1L)
-      }
-    }
+    implicit val stringSerde: Serde[String] = Serdes.String
+    implicit val longSerde: Serde[Long] = Serdes.Long
+    implicit val avroSongSerde: SpecificAvroSerde[Song] = getAvroSongSerde(schemaRegistryHost, schemaRegistryPort)
 
 
-    val artistCountStream: KStream[String, JLong] = initialStream.map(artistCount)
-    val stringSerde: Serde[String] = Serdes.String()
-    val longSerde: Serde[JLong] = Serdes.Long()
-    val serialization = Serialized.`with`[String, JLong](stringSerde, longSerde)
-    val songsGrouppedByArtist: KGroupedStream[String, JLong] = artistCountStream.groupByKey(serialization)
-    val tableArtistAndCount = songsGrouppedByArtist.count()
+    val builder: StreamsBuilder = new StreamsBuilder()
+    val initialStream: KStream[String, Song] = builder.stream(inputTopic)
 
-    tableArtistAndCount.toStream.to(outputTopic, Produced.`with`(stringSerde, longSerde))
+    val songsMappedByArtistStream: KStream[String, Long] = initialStream.map((_, song) => (song.getArtist.toString, 1L))
+
+    val songsGroupByArtistStream: KGroupedStream[String, Long] = songsMappedByArtistStream.groupByKey
+
+    val songsByArtistTable: KTable[String, Long] = songsGroupByArtistStream.count()
+
+    songsByArtistTable.toStream.to(outputTopic)
+
     builder.build()
   }
 }
