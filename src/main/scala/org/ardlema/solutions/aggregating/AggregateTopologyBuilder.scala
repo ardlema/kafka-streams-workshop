@@ -40,9 +40,9 @@ object AggregateTopologyBuilder {
 
     val songsGroupByArtistStream: KGroupedStream[String, Long] = songsMappedByArtistStream.groupByKey
 
-    val songsByArtistStream: KTable[String, Long] = songsGroupByArtistStream.count()
+    val songsByArtistTable: KTable[String, Long] = songsGroupByArtistStream.count()
 
-    songsByArtistStream.toStream.to(outputTopic)
+    songsByArtistTable.toStream.to(outputTopic)
 
     builder.build()
   }
